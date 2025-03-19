@@ -125,23 +125,7 @@
                     .attr("stroke", color(key))
                     .attr("stroke-width", 3)
                     .attr("d", line)
-                    .on("mouseover", function (event, d) {
-                        tooltip
-                            .style("display", "block")
-                            .html(`
-                                Nhóm hàng: <strong>${key}</strong><br>
-                                Xác suất: <strong>${(values[0]["Xác suất"] * 100).toFixed(1)}%</strong><br>
-                                Tháng: <strong>${values[0]["Tháng"]}</strong><br>
-                                Số đơn hàng: <strong>${values[0]["Unique Orders"].toLocaleString()}</strong>
-                            `);
-                    })
-                    .on("mousemove", function (event) {
-                        tooltip
-                            .style("top", (event.pageY - 10) + "px")
-                            .style("left", (event.pageX + 10) + "px");
-                    })
-                    .on("mouseout", function () {
-                        tooltip.style("display", "none");
+
                     });
 
                 // Thêm các dấu "mark" (điểm đánh dấu) vào biểu đồ đường
