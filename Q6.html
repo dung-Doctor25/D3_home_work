@@ -35,86 +35,60 @@
 <body>
     <h1>Doanh số bán hàng trung bình theo Khung giờ</h1>
     <svg width="1800" height="700"></svg>
-
-    <!-- Tooltip -->
     <div class="tooltip" id="tooltip"></div>
-
     <script>
         const margin = { top: 20, right: 30, bottom: 50, left: 70 };
         const width = 1400 - margin.left - margin.right;
         const height = 620 - margin.top - margin.bottom;
-
         const svg = d3.select("svg")
             .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
-
         const tooltip = d3.select("#tooltip");
-
         d3.csv("data.csv").then(function(data1) {
-            const data = data1//.slice(0, 10000); // thử trước vì sẽ bị lag.slice(0, 10000)
+            const data = data1;
             data.forEach(d => {
                 d["Thành tiền"] = +d["Thành tiền"];
                 d["Thời gian tạo đơn moi"] = new Date(d["Thời gian tạo đơn"]);
                 d["Khung giờ"] = d["Thời gian tạo đơn moi"].getHours().toString().padStart(2, '0');
                 d["Thời gian tạo đơn moi2"] = d["Thời gian tạo đơn moi"].toISOString().split("T")[0];
             });
-            console.log(data.slice(0, 10));
             const groupedData = Array.from(
                 d3.group(data, d => d["Khung giờ"]),
                 ([key, values]) => {
-                    const uniqueDates = new Set(values.map(v => v["Thời gian tạo đơn moi2"])); // Lấy danh sách ngày duy nhất
-                    const uniqueCount = uniqueDates.size; // Đếm số ngày duy nhất
-                    
+                    const uniqueDates = new Set(values.map(v => v["Thời gian tạo đơn moi2"]));
+                    const uniqueCount = uniqueDates.size;
                     return {
                         "Khung giờ": key,
-                        "Doanh số bán TB": d3.sum(values, v => v["Thành tiền"]) / uniqueCount, // Sum chia cho số ngày duy nhất
-                        "Số lượng bán TB": d3.sum(values, v => v["SL"]) / uniqueCount, // Tương tự cho số lượng
+                        "Doanh số bán TB": d3.sum(values, v => v["Thành tiền"]) / uniqueCount,
+                        "Số lượng bán TB": d3.sum(values, v => v["SL"]) / uniqueCount,
                     };
                 }
             );
-            // Sắp xếp theo thứ tự Khung giờ
-            groupedData.sort((a, b) => {
-                return a["Khung giờ"]-b["Khung giờ"];
-            }); 
-            console.log(groupedData);
-            
-
+            groupedData.sort((a, b) => a["Khung giờ"] - b["Khung giờ"]);
             const x = d3.scaleBand()
                 .domain(groupedData.map(d => d["Khung giờ"]))
                 .range([0, width])
                 .padding(0.2);
-
             const y = d3.scaleLinear()
                 .domain([0, d3.max(groupedData, d => d["Doanh số bán TB"])])
                 .nice()
                 .range([height, 0]);
-
             const color = d3.scaleOrdinal()
                 .domain(groupedData.map(d => d["Khung giờ"]))
                 .range(d3.schemeSet2);
-
-            // Trục X (Khung giờ)
             svg.append("g")
                 .attr("transform", `translate(0,${height})`)
-                .call(d3.axisBottom(x)
-                    .ticks(10) // Số lượng ticks bạn muốn
-                    .tickFormat(d => `${d}:00-${d}:59`)) // Thêm chữ "Ngày" vào trước mỗi giá trị
+                .call(d3.axisBottom(x).tickFormat(d => `${d}:00-${d}:59`))
                 .selectAll("text")
                 .attr("transform", "rotate(-45)")
-                .attr("dy", "20px") // Đẩy text xuống dưới
-                .attr("dx", "-25px") // Điều chỉnh sang trái (hoặc sang phải nếu cần)
+                .attr("dy", "20px")
+                .attr("dx", "-25px")
                 .style("text-anchor", "middle")
                 .style("font-size", "12px");
-
-            // Trục Y (Doanh số bán TB)
             svg.append("g")
-                .call(d3.axisLeft(y)
-                    .ticks(d3.max(groupedData, d => d["Doanh số bán TB"]) / 100000)
-                    .tickFormat(d => `${d / 1000}K`))
+                .call(d3.axisLeft(y).tickFormat(d => `${d / 1000}K`))
                 .selectAll("text")
                 .style("font-size", "12px");
-
-            // Vẽ cột dọc
             svg.selectAll(".bar")
                 .data(groupedData)
                 .enter()
@@ -126,8 +100,7 @@
                 .attr("height", d => height - y(d["Doanh số bán TB"]))
                 .attr("fill", d => color(d["Khung giờ"]))
                 .on("mouseover", function (event, d) {
-                    tooltip
-                        .style("display", "block")
+                    tooltip.style("display", "block")
                         .html(`
                             <strong>Khung giờ ${d["Khung giờ"]}:00-${d["Khung giờ"]}:59</strong><br>
                             Doanh số bán: ${(Number(d["Doanh số bán TB"].toFixed(0))).toLocaleString()} VND<br>
@@ -135,15 +108,12 @@
                         `);
                 })
                 .on("mousemove", function (event) {
-                    tooltip
-                        .style("top", (event.pageY - 10) + "px")
+                    tooltip.style("top", (event.pageY - 10) + "px")
                         .style("left", (event.pageX + 10) + "px");
                 })
                 .on("mouseout", function () {
                     tooltip.style("display", "none");
                 });
-
-            // Hiển thị nhãn trên các cột
             svg.selectAll(".label")
                 .data(groupedData)
                 .enter()
@@ -153,16 +123,12 @@
                 .attr("y", d => y(d["Doanh số bán TB"]) - 5)
                 .text(d => `${(Number(d["Doanh số bán TB"].toFixed(0))).toLocaleString()} VND`)
                 .style("font-size", "12px");
-
-            // Nhãn trục X
             svg.append("text")
                 .attr("x", width / 2)
                 .attr("y", height + margin.bottom +30)
                 .attr("text-anchor", "middle")
                 .attr("class", "axis-label")
                 .text("Khung giờ");
-
-            // Nhãn trục Y
             svg.append("text")
                 .attr("x", -height / 2)
                 .attr("y", -margin.left + 20)
@@ -170,8 +136,6 @@
                 .attr("transform", "rotate(-90)")
                 .attr("class", "axis-label")
                 .text("Doanh số bán TB (VNĐ)");
-        }).catch(function(error) {
-            console.error("Lỗi khi tải file CSV:", error);
         });
     </script>
 </body>

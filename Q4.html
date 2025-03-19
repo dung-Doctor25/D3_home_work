@@ -35,10 +35,7 @@
 <body>
     <h1>Doanh số bán hàng trung bình theo Ngày trong tuần</h1>
     <svg width="1800" height="700"></svg>
-
-    <!-- Tooltip -->
     <div class="tooltip" id="tooltip"></div>
-
     <script>
         const margin = { top: 20, right: 30, bottom: 50, left: 70 };
         const width = 1300 - margin.left - margin.right;
@@ -61,25 +58,21 @@
             const groupedData = Array.from(
                 d3.group(data, d => d["Ngày trong tuần"]),
                 ([key, values]) => {
-                    const uniqueDates = new Set(values.map(v => v["Thời gian tạo đơn moi2"])); // Lấy danh sách ngày duy nhất
-                    const uniqueCount = uniqueDates.size; // Đếm số ngày duy nhất
-                    
+                    const uniqueDates = new Set(values.map(v => v["Thời gian tạo đơn moi2"]));
+                    const uniqueCount = uniqueDates.size;
                     return {
                         "Ngày trong tuần": key,
-                        "Doanh số bán TB": d3.sum(values, v => v["Thành tiền"]) / uniqueCount, // Sum chia cho số ngày duy nhất
-                        "Số lượng bán TB": d3.sum(values, v => v["SL"]) / uniqueCount, // Tương tự cho số lượng
+                        "Doanh số bán TB": d3.sum(values, v => v["Thành tiền"]) / uniqueCount,
+                        "Số lượng bán TB": d3.sum(values, v => v["SL"]) / uniqueCount,
                     };
                 }
             );
-            // Định nghĩa thứ tự các ngày trong tuần
-            const weekdayOrder = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"];
 
-            // Sắp xếp theo thứ tự ngày trong tuần
+            const weekdayOrder = ["Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy", "Chủ Nhật"];
             groupedData.sort((a, b) => {
                 return weekdayOrder.indexOf(a["Ngày trong tuần"]) - weekdayOrder.indexOf(b["Ngày trong tuần"]);
             }); 
             console.log(groupedData);
-            
 
             const x = d3.scaleBand()
                 .domain(groupedData.map(d => d["Ngày trong tuần"]))
@@ -95,7 +88,6 @@
                 .domain(groupedData.map(d => d["Ngày trong tuần"]))
                 .range(d3.schemeSet2);
 
-            // Trục X (Ngày trong tuần)
             svg.append("g")
                 .attr("transform", `translate(0,${height})`)
                 .call(d3.axisBottom(x))
@@ -104,7 +96,6 @@
                 .style("text-anchor", "middle")
                 .style("font-size", "12px");
 
-            // Trục Y (Doanh số bán TB)
             svg.append("g")
                 .call(d3.axisLeft(y)
                     .ticks(d3.max(groupedData, d => d["Doanh số bán TB"]) / 1000000)
@@ -112,7 +103,6 @@
                 .selectAll("text")
                 .style("font-size", "12px");
 
-            // Vẽ cột dọc
             svg.selectAll(".bar")
                 .data(groupedData)
                 .enter()
@@ -141,7 +131,6 @@
                     tooltip.style("display", "none");
                 });
 
-            // Hiển thị nhãn trên các cột
             svg.selectAll(".label")
                 .data(groupedData)
                 .enter()
@@ -152,7 +141,6 @@
                 .text(d => `${Math.round(d["Doanh số bán TB"],0).toLocaleString()} VND`)
                 .style("font-size", "12px");
 
-            // Nhãn trục X
             svg.append("text")
                 .attr("x", width / 2)
                 .attr("y", height + margin.bottom - 10)
@@ -160,7 +148,6 @@
                 .attr("class", "axis-label")
                 .text("Ngày trong tuần");
 
-            // Nhãn trục Y
             svg.append("text")
                 .attr("x", -height / 2)
                 .attr("y", -margin.left + 20)
@@ -168,8 +155,6 @@
                 .attr("transform", "rotate(-90)")
                 .attr("class", "axis-label")
                 .text("Doanh số bán TB (VNĐ)");
-        }).catch(function(error) {
-            console.error("Lỗi khi tải file CSV:", error);
         });
     </script>
 </body>

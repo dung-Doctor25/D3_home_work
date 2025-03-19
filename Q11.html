@@ -35,10 +35,7 @@
 <body>
     <h1>Phân phối Lượt mua hàng</h1>
     <svg width="1400" height="630"></svg>
-
-    <!-- Tooltip -->
     <div class="tooltip" id="tooltip"></div>
-
     <script>
         const margin = { top: 20, right: 30, bottom: 50, left: 70 };
         const width = 1400 - margin.left - margin.right;
@@ -51,18 +48,17 @@
         const tooltip = d3.select("#tooltip");
 
         d3.csv("data.csv").then(function(data1) {
-            const data = data1//.slice(0, 10000); // thử trước vì sẽ bị lag.slice(0, 10000)
+            const data = data1;
             data.forEach(d => {
                 d["Thành tiền"] = +d["Thành tiền"];
             });
-            console.log('origin',data.slice(0, 10));
             const groupedData = Array.from(
                 d3.group(
                     Array.from(
                     d3.group(data, d => d["Mã khách hàng"]),
                     ([key, values]) => ({
                             "Mã khách hàng": key,
-                            "Số lần mua hàng": new Set(values.map(d=> d["Mã đơn hàng"])).size, // Sum chia cho số ngày duy nhất
+                            "Số lần mua hàng": new Set(values.map(d=> d["Mã đơn hàng"])).size,
                     }),
                 ),           
                     d => d["Số lần mua hàng"]),
@@ -72,13 +68,10 @@
                 })  
             );
 
-            // Sắp xếp theo thứ tự Số lần mua hàng
             groupedData.sort((a, b) => {
                 return a["Số lần mua hàng"]-b["Số lần mua hàng"];
             }); 
-            console.log('group',groupedData);
             
-
             const x = d3.scaleBand()
                 .domain(groupedData.map(d => d["Số lần mua hàng"]))
                 .range([0, width])
@@ -93,21 +86,18 @@
                 .domain(groupedData.map(d => d["Số lần mua hàng"]))
                 .range(d3.schemeSet2);
 
-            // Trục X (Số lần mua hàng)
             svg.append("g")
                 .attr("transform", `translate(0,${height})`)
-                .call(d3.axisBottom(x)) // Số lượng ticks bạn muốn
+                .call(d3.axisBottom(x))
                 .selectAll("text")
                 .style("text-anchor", "middle")
                 .style("font-size", "12px");
 
-            // Trục Y (Doanh số bán TB)
             svg.append("g")
                 .call(d3.axisLeft(y))
                 .selectAll("text")
                 .style("font-size", "12px");
 
-            // Vẽ cột dọc
             svg.selectAll(".bar")
                 .data(groupedData)
                 .enter()
@@ -135,7 +125,6 @@
                     tooltip.style("display", "none");
                 });
 
-            // Nhãn trục X
             svg.append("text")
                 .attr("x", width / 2)
                 .attr("y", height +50)
@@ -143,7 +132,6 @@
                 .attr("class", "axis-label")
                 .text("Số lần mua hàng");
 
-            // Nhãn trục Y
             svg.append("text")
                 .attr("x", -height / 2)
                 .attr("y", -margin.left + 20)

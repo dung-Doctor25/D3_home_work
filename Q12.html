@@ -35,34 +35,28 @@
 <body>
     <h1></h1>
     <svg width="1500" height="750"></svg>
-
-    <!-- Tooltip -->
     <div class="tooltip" id="tooltip"></div>
-
     <script>
         const margin = { top: 20, right: 30, bottom: 50, left: 70 };
         const width = 1400 - margin.left - margin.right;
         const height = 620 - margin.top - margin.bottom;
-
         const svg = d3.select("svg")
             .append("g")
             .attr("transform", `translate(${margin.left},${margin.top})`);
-
         const tooltip = d3.select("#tooltip");
         d3.select('h1').text("Phân phối Mức chi trả của Khách hàng")
         d3.csv("data.csv").then(function(data1) {
-            const data = data1//.slice(0, 10000); // thử trước vì sẽ bị lag.slice(0, 10000)
+            const data = data1
             data.forEach(d => {
                 d["Thành tiền"] = +d["Thành tiền"];
             });
-            console.log('origin',data.slice(0, 10));
             const groupedData = Array.from(
                 d3.group(
                     Array.from(
                         d3.group(data, d => d["Mã khách hàng"]),
                         ([key, values]) => ({
                                 "Mã khách hàng": key,
-                                "Mức chi tiêu": d3.sum(values.map(d=> d["Thành tiền"])), // Sum chia cho số ngày duy nhất
+                                "Mức chi tiêu": d3.sum(values.map(d=> d["Thành tiền"])),
                         })
                     ),           
                     d => Math.floor(d["Mức chi tiêu"] / 50000) * 50000
@@ -72,46 +66,31 @@
                     "Số lượng khách hàng": values.length
                 })  
             );
-
-            // Sắp xếp theo thứ tự Mức chi tiêu
             groupedData.sort((a, b) => {
                 return a["Mức chi tiêu"]-b["Mức chi tiêu"];
             }); 
-            console.log('group',groupedData);
-            
-
             const x = d3.scaleBand()
                 .domain(groupedData.map(d => d["Mức chi tiêu"]))
                 .range([0, width+40])
                 .padding(0.2);
-
             const y = d3.scaleLinear()
                 .domain([0, d3.max(groupedData, d => d["Số lượng khách hàng"])])
                 .nice()
                 .range([height+50, 0]);
-
-
-            // Trục X (Mức chi tiêu)
             svg.append("g")
                 .attr("transform", `translate(0,${height+50})`)
                 .call(d3.axisBottom(x)
-                    .tickFormat(d => `${d/1000}K`)) // Số lượng ticks bạn muốn
+                    .tickFormat(d => `${d/1000}K`))
                 .selectAll("text")
                 .attr("transform", `rotate(-90)`)
-                .attr("dy", "-4px") // Đẩy text xuống dưới
-                .attr("dx", "-10px") // Điều chỉnh sang trái (hoặc sang phải nếu cần)
+                .attr("dy", "-4px")
+                .attr("dx", "-10px")
                 .style("text-anchor", "end")
                 .style("font-size", "12px")
-                
-
-            // Trục Y (Doanh số bán TB)
             svg.append("g")
                 .call(d3.axisLeft(y))
                 .selectAll("text")
                 .style("font-size", "12px")
-
-
-            // Vẽ cột dọc
             svg.selectAll(".bar")
                 .data(groupedData)
                 .enter()
@@ -125,8 +104,8 @@
                 .on("mouseover", function (event, d) {
                     d3.select(this)
                         .transition().duration(200)
-                        .attr("fill", "#F28E2B") // Đổi màu khi hover
-                        .attr("opacity", 0.8) // Làm mờ nhẹ                    
+                        .attr("fill", "#F28E2B")
+                        .attr("opacity", 0.8)                    
                     tooltip
                         .style("display", "block")
                         .html(`
@@ -142,20 +121,16 @@
                 .on("mouseout", function () {
                     d3.select(this)
                         .transition().duration(200)
-                        .attr("fill", '#4E79A7') // Trả lại màu ban đầu
+                        .attr("fill", '#4E79A7')
                         .attr("opacity", 1);
                     tooltip.style("display", "none");
                 });
-
-            // Nhãn trục X
             svg.append("text")
                 .attr("x", width / 2)
                 .attr("y", height +120)
                 .attr("text-anchor", "middle")
                 .attr("class", "axis-label")
                 .text("Mức chi tiêu");
-
-            // Nhãn trục Y
             svg.append("text")
                 .attr("x", -height / 2)
                 .attr("y", -margin.left + 20)
