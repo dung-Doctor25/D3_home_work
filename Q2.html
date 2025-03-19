@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualization with D3</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .bar {
+            stroke: black;
+            stroke-width: 0.5;
+        }
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .label {
+            fill: black;
+            font-size: 12px;
+            font-weight: bold;
+            text-anchor: start;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            font-size: 12px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Doanh số bán hàng theo Nhóm hàng</h1>
+    <svg width="2000" height="800"></svg>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        const margin = { top: 20, right: 30, bottom: 20, left: 200 };
+        const width = 1300 - margin.left - margin.right;
+        const height = 600 - margin.top - margin.bottom;
+
+        const svg = d3.select("svg")
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const tooltip = d3.select("#tooltip");
+
+        d3.csv("data.csv").then(function(data) {
+            data.forEach(d => {
+                d["Thành tiền"] = +d["Thành tiền"];
+            });
+            console.log(data.slice(0, 10));
+            const groupedData = Array.from(
+                d3.group(data, d => d["Tên nhóm hàng"]),
+                ([key, values]) => ({
+                    "Tên nhóm hàng": key,
+                    "Mã nhóm hàng": values[0]["Mã nhóm hàng"],
+                    "Thành tiền": d3.sum(values, v => v["Thành tiền"]),
+                    "Số lượng": d3.sum(values, v => v["SL"]),
+                    "Nhóm hàng": `[${values[0]["Mã nhóm hàng"]}] ${values[0]["Tên nhóm hàng"]}`  // Thêm trường Nhóm hàng
+                })
+            );
+            console.log(groupedData);
+
+            groupedData.sort((a, b) => b["Thành tiền"] - a["Thành tiền"]);
+
+            const y = d3.scaleBand()
+                .domain(groupedData.map(d => d["Nhóm hàng"]))
+                .range([0, height])
+                .padding(0.2);
+
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(groupedData, d => d["Thành tiền"])]).nice()
+                .range([0, width]);
+
+            const color = d3.scaleOrdinal()
+                .domain([...new Set(groupedData.map(d => d["Mã nhóm hàng"]))])
+                .range(d3.schemeSet2);
+
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x)
+                    .ticks(20)
+                    .tickFormat(d => `${d / 1000000}M`))
+                .selectAll("text")
+                .style("font-size", "12px");
+
+            svg.append("g")
+                .call(d3.axisLeft(y))
+                .selectAll("text")
+                .style("font-size", "12px");
+
+            svg.selectAll(".bar")
+                .data(groupedData)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("y", d => y(d["Nhóm hàng"]))
+                .attr("x", 0)
+                .attr("height", y.bandwidth())
+                .attr("width", d => x(d["Thành tiền"]))
+                .attr("fill", d => color(d["Mã nhóm hàng"]))
+                .on("mouseover", function (event, d) {
+                    tooltip
+                        .style("display", "block")
+                        .html(`
+                            <strong>${d["Nhóm hàng"]}</strong><br>
+                            
+                            Thành tiền: ${d3.format(",")(d["Thành tiền"])} VND<br>
+                            Số lượng: ${d3.format(",")(d["Số lượng"])} SKUs
+                        `);
+                })
+                .on("mousemove", function (event) {
+                    tooltip
+                        .style("top", (event.pageY - 10) + "px")
+                        .style("left", (event.pageX + 10) + "px");
+                })
+                .on("mouseout", function () {
+                    tooltip.style("display", "none");
+                });
+
+            svg.selectAll(".label")
+                .data(groupedData)
+                .enter()
+                .append("text")
+                .attr("class", "label")
+                .attr("y", d => y(d["Nhóm hàng"]) + y.bandwidth() / 2)
+                .attr("x", d => x(d["Thành tiền"]) + 5)
+                .attr("dy", "0.35em")
+                .text(d => `${Math.round(d["Thành tiền"]/1_000_000 ).toLocaleString()} triệu VND`);
+
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height + margin.bottom + 15)
+                .attr("text-anchor", "middle")
+                .attr("class", "axis-label")
+                .text("Thành tiền (VNĐ)");
+
+            svg.append("text")
+                .attr("x", -height / 2)
+                .attr("y", -margin.left + 15)
+                .attr("text-anchor", "middle")
+                .attr("transform", "rotate(-90)")
+                .attr("class", "axis-label")
+                .text("Nhóm hàng");
+
+        }).catch(function(error) {
+            console.error("Lỗi khi tải file CSV:", error);
+        });
+    </script>
+</body>
+</html>

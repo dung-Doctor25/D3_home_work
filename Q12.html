@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biểu đồ cột dọc</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .bar {
+            stroke: black;
+            stroke-width: 0.5;
+        }
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .label {
+            fill: black;
+            font-size: 12px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            font-size: 12px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1></h1>
+    <svg width="1500" height="750"></svg>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        const margin = { top: 20, right: 30, bottom: 50, left: 70 };
+        const width = 1400 - margin.left - margin.right;
+        const height = 620 - margin.top - margin.bottom;
+
+        const svg = d3.select("svg")
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const tooltip = d3.select("#tooltip");
+        d3.select('h1').text("Phân phối Mức chi trả của Khách hàng")
+        d3.csv("data.csv").then(function(data1) {
+            const data = data1//.slice(0, 10000); // thử trước vì sẽ bị lag.slice(0, 10000)
+            data.forEach(d => {
+                d["Thành tiền"] = +d["Thành tiền"];
+            });
+            console.log('origin',data.slice(0, 10));
+            const groupedData = Array.from(
+                d3.group(
+                    Array.from(
+                        d3.group(data, d => d["Mã khách hàng"]),
+                        ([key, values]) => ({
+                                "Mã khách hàng": key,
+                                "Mức chi tiêu": d3.sum(values.map(d=> d["Thành tiền"])), // Sum chia cho số ngày duy nhất
+                        })
+                    ),           
+                    d => Math.floor(d["Mức chi tiêu"] / 50000) * 50000
+            ),
+                ([key, values]) => ({
+                    "Mức chi tiêu": key,
+                    "Số lượng khách hàng": values.length
+                })  
+            );
+
+            // Sắp xếp theo thứ tự Mức chi tiêu
+            groupedData.sort((a, b) => {
+                return a["Mức chi tiêu"]-b["Mức chi tiêu"];
+            }); 
+            console.log('group',groupedData);
+            
+
+            const x = d3.scaleBand()
+                .domain(groupedData.map(d => d["Mức chi tiêu"]))
+                .range([0, width+40])
+                .padding(0.2);
+
+            const y = d3.scaleLinear()
+                .domain([0, d3.max(groupedData, d => d["Số lượng khách hàng"])])
+                .nice()
+                .range([height+50, 0]);
+
+
+            // Trục X (Mức chi tiêu)
+            svg.append("g")
+                .attr("transform", `translate(0,${height+50})`)
+                .call(d3.axisBottom(x)
+                    .tickFormat(d => `${d/1000}K`)) // Số lượng ticks bạn muốn
+                .selectAll("text")
+                .attr("transform", `rotate(-90)`)
+                .attr("dy", "-4px") // Đẩy text xuống dưới
+                .attr("dx", "-10px") // Điều chỉnh sang trái (hoặc sang phải nếu cần)
+                .style("text-anchor", "end")
+                .style("font-size", "12px")
+                
+
+            // Trục Y (Doanh số bán TB)
+            svg.append("g")
+                .call(d3.axisLeft(y))
+                .selectAll("text")
+                .style("font-size", "12px")
+
+
+            // Vẽ cột dọc
+            svg.selectAll(".bar")
+                .data(groupedData)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", d => x(d["Mức chi tiêu"]))
+                .attr("y", d => y(d["Số lượng khách hàng"]))
+                .attr("width", x.bandwidth())
+                .attr("height", d => height+50 - y(d["Số lượng khách hàng"]))
+                .attr("fill", '#4E79A7')
+                .on("mouseover", function (event, d) {
+                    d3.select(this)
+                        .transition().duration(200)
+                        .attr("fill", "#F28E2B") // Đổi màu khi hover
+                        .attr("opacity", 0.8) // Làm mờ nhẹ                    
+                    tooltip
+                        .style("display", "block")
+                        .html(`
+                            <strong>Đã chi tiêu từ ${Number(d["Mức chi tiêu"]).toLocaleString()} đến ${Number(d["Mức chi tiêu"]+50000).toLocaleString()}</strong><br>
+                            Số lượng khách hàng: ${Number(d["Số lượng khách hàng"]).toLocaleString()}<br>
+                        `);
+                })
+                .on("mousemove", function (event) {
+                    tooltip
+                        .style("top", (event.pageY - 10) + "px")
+                        .style("left", (event.pageX + 10) + "px");
+                })
+                .on("mouseout", function () {
+                    d3.select(this)
+                        .transition().duration(200)
+                        .attr("fill", '#4E79A7') // Trả lại màu ban đầu
+                        .attr("opacity", 1);
+                    tooltip.style("display", "none");
+                });
+
+            // Nhãn trục X
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height +120)
+                .attr("text-anchor", "middle")
+                .attr("class", "axis-label")
+                .text("Mức chi tiêu");
+
+            // Nhãn trục Y
+            svg.append("text")
+                .attr("x", -height / 2)
+                .attr("y", -margin.left + 20)
+                .attr("text-anchor", "middle")
+                .attr("transform", "rotate(-90)")
+                .attr("class", "axis-label")
+                .text("Số lượng khách hàng");
+        }).catch(function(error) {
+            console.error("Lỗi khi tải file CSV:", error);
+        });
+    </script>
+</body>
+</html>

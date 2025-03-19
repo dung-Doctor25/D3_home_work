@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biểu đồ cột ngang - Xác suất bán hàng</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .bar {
+            stroke: black;
+            stroke-width: 0.5;
+        }
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .label {
+            fill: black;
+            font-size: 12px;
+            font-weight: bold;
+            text-anchor: start;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            font-size: 12px;
+            display: none;
+        }
+        .chart {
+            margin-bottom: 50px;
+            display: inline-block;
+            margin-right: 20px;
+            border: 2px solid black;
+        }
+        #charts {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-evenly;
+            width: 1500px;
+        }                                                                                                                     
+    </style>
+</head>
+<body>
+    <h1>Xác suất bán hàng của từng mặt hàng theo Nhóm hàng</h1>
+    <div id="charts"></div>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        
+        const margin = { top: 20, right: 45, bottom: 50, left: 180 };
+        const width = 400 - margin.left - margin.right;  // Giảm chiều rộng để vừa với 3 biểu đồ trên
+        const height = 250 - margin.top - margin.bottom; // Giảm chiều cao để vừa với 2 biểu đồ dưới
+
+        const tooltip = d3.select("#tooltip");
+
+            // Hàm chọn màu sắc ngẫu nhiên cho từng mặt hàng
+
+
+
+        d3.csv("data.csv").then(function(data) {
+            // Tiền xử lý dữ liệu
+            data.forEach(d => {
+                d['Nhóm hàng'] = `[${d['Mã nhóm hàng']}] ${d['Tên nhóm hàng']}`;
+                d['Mặt hàng'] = `[${d['Mã mặt hàng']}] ${d['Tên mặt hàng']}`;
+            });
+            
+            // Tìm độ dài lớn nhất của Mặt hàng
+            const maxItemLength = d3.max(data, d => d["Mặt hàng"].length);
+            
+            // Tính margin.left linh hoạt
+            const margin = { 
+                top: 20, 
+                right: 45, 
+                bottom: 50, 
+                left: Math.max(maxItemLength)+180  // 8px cho mỗi ký tự, tối thiểu là 180px
+            };
+            
+            // Lấy danh sách tất cả các mặt hàng
+            const allItems = Array.from(new Set(data.map(d => d["Mặt hàng"])));
+            // Hàm ánh xạ màu toàn cục
+            function getColorGlobal(itemName) {
+                const index = allItems.indexOf(itemName); // Lấy chỉ số của Mặt hàng
+                const hue = (index * 67) % 360; // Dùng số nhân nguyên tố (37) để tạo màu khác biệt
+                const saturation = 80; // Tăng độ bão hòa để màu rực rỡ hơn
+                const lightness = 60; // Tăng độ sáng để dễ nhìn hơn
+                return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+
+            }
+
+            // Tính toán xác suất cho từng nhóm hàng
+            const groupedData = Array.from(
+                d3.group(data, d => d["Nhóm hàng"]),
+                ([key, values]) => ({
+                    "Nhóm hàng": key,
+                    
+                    "items": Array.from(
+                        d3.group(values, d => d["Mặt hàng"]),
+                        ([item, itemValues]) => ({
+                            "Mặt hàng": item,
+                            "Unique Orders": new Set(itemValues.map(v => v["Mã đơn hàng"])).size,
+                            "Xác suất": new Set(itemValues.map(v => v["Mã đơn hàng"])).size / new Set(values.map(v => v["Mã đơn hàng"])).size,
+                        })
+                    ).sort((a, b) => b["Xác suất"] - a["Xác suất"])
+                })
+            );
+            console.log(groupedData);
+
+
+            // Chọn phần tử chứa các biểu đồ
+            const chartsContainer = d3.select("#charts");
+
+            // Vẽ biểu đồ cho từng nhóm hàng
+            groupedData.forEach((group, index) => {
+                console.log('group',group['Nhóm hàng']);
+                
+                const svg = chartsContainer.append("div")
+                
+                    .attr("class", "chart")
+                    .style("width", `${width + margin.left + margin.right}px`)
+                    .style("height", `${height + margin.top + margin.bottom}px`)
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right+100)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left},${margin.top+10})`);
+                    
+
+                // Scale cho trục Y (Mặt hàng)
+                const y = d3.scaleBand()
+                    .domain(group.items.map(d => d["Mặt hàng"]))
+                    .range([0, height])
+                    .padding(0.2);
+
+                // Scale cho trục X (Xác suất)
+                const x = d3.scaleLinear()
+                    .domain([0, d3.max(group.items, d => d["Xác suất"])]).nice()
+                    .range([0, width]);
+
+                // Trục X
+                svg.append("g")
+                    .attr("transform", `translate(0,${height})`)
+                    .call(d3.axisBottom(x).ticks(5).tickFormat(d => `${Math.round(d * 100)}%`))
+                    .selectAll("text")
+                    .style("font-size", "12px");
+
+                // Trục Y
+                svg.append("g")
+                    .call(d3.axisLeft(y).tickSize(0))
+                    .selectAll("text")
+                    .style("font-size", "12px");
+
+                // Vẽ các cột
+                svg.selectAll(".bar")
+                    .data(group.items)
+                    
+                    .enter()
+                    .append("rect")
+                    .attr("class", "bar")
+                    .attr("y", d => y(d["Mặt hàng"]))
+                    .attr("x", 0)
+                    .attr("width", d => x(d["Xác suất"]))
+                    .attr("height", y.bandwidth())
+                    .attr("fill", d => getColorGlobal(d["Mặt hàng"]))  // Áp dụng màu sắc cho từng mặt hàng
+                    .on("mouseover", function (event, d) {
+                        tooltip
+                            .style("display", "block")
+                            .html(`
+                                <strong>${d["Mặt hàng"]}</strong><br>
+                                Số đơn hàng: ${d["Unique Orders"].toLocaleString('en-US')}<br>
+                                Xác suất: ${(d["Xác suất"] * 100).toFixed(1)}%
+                            `);
+                    })
+                    .on("mousemove", function (event) {
+                        tooltip
+                            .style("top", (event.pageY - 10) + "px")
+                            .style("left", (event.pageX + 10) + "px");
+                    })
+                    .on("mouseout", function () {
+                        tooltip.style("display", "none");
+                    });
+
+                // Hiển thị nhãn trên các cột
+                svg.selectAll(".label")
+                    .data(group.items)
+                    .enter()
+                    .append("text")
+                    .attr("class", "label")
+                    .attr("x", d => x(d["Xác suất"]) + 5)
+                    .attr("y", d => y(d["Mặt hàng"]) + y.bandwidth() / 2)
+                    .attr("dy", "0.35em")
+                    .text(d => `${(d["Xác suất"] * 100).toFixed(1)}%`);
+             // Thêm tiêu đề cho chart
+                svg.append("text")
+                    .attr("x", width / 2)  // Căn giữa theo chiều ngang
+                    .attr("y", -5)  // Căn lề trên
+                    .attr("text-anchor", "middle")  // Canh giữa văn bản
+                    .attr("font-size", "16px")  // Kích thước chữ
+                    .attr("font-weight", "bold")  // In đậm
+                    .text(group["Nhóm hàng"]);  // Tiêu đề là tên Nhóm hàng
+                            });
+
+        }).catch(function(error) {
+            console.error("Lỗi khi tải file CSV:", error);
+        });
+    </script>
+</body>
+</html>

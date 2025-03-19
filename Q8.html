@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biểu đồ đường - Xác suất bán hàng theo tháng</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .line {
+            fill: none;
+        }
+        .axis-label {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            font-size: 12px;
+            display: none;
+        }
+    </style>
+
+</head>
+<body>
+    <h1>Xác suất bán hàng theo Nhóm hàng - Tháng</h1>
+    <svg width="1400" height="720"></svg>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        const margin = { top: 20, right: 30, bottom: 50, left: 80 };
+        const width = 1200 - margin.left - margin.right;
+        const height = 700 - margin.top - margin.bottom;
+
+        const svg = d3.select("svg")
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const tooltip = d3.select("#tooltip");
+
+        d3.csv("data.csv").then(function(data) {
+            // Tiền xử lý dữ liệu
+            data.forEach(d => {
+                d["Tháng"] = String(new Date(d["Thời gian tạo đơn"]).getMonth() + 1).padStart(2, "0");
+                d["Nhóm hàng"] = `[${d["Mã nhóm hàng"]}] ${d["Tên nhóm hàng"]}`;
+            });
+            
+            // Nhóm dữ liệu theo Nhóm hàng và Tháng
+            const groupedData = Array.from(
+                d3.group(data, d => `${d["Nhóm hàng"]}-${d["Tháng"]}`),
+                ([key, values]) => {
+                    const [nhomHang, thang] = key.split("-");
+                    return {
+                        "Nhóm hàng": nhomHang,
+                        "Tháng": thang,
+                        "Unique Orders": new Set(values.map(v => v["Mã đơn hàng"])).size,
+                    };
+                }
+            );
+
+            // Tổng số đơn hàng theo Tháng
+            const totalOrdersByMonth = d3.rollup(
+                data,
+                v => new Set(v.map(d => d["Mã đơn hàng"])).size,
+                d => d["Tháng"]
+            );
+
+            // Tính xác suất cho mỗi Nhóm hàng
+            groupedData.forEach(d => {
+                d["Xác suất"] = d["Unique Orders"] / totalOrdersByMonth.get(d["Tháng"]);
+            });
+
+            // Nhóm dữ liệu theo Nhóm hàng
+            const nestedData = d3.group(groupedData, d => d["Nhóm hàng"]);
+            console.log(nestedData);
+            // Scale
+            const x = d3.scaleBand()
+                .domain([...new Set(groupedData.map(d => d["Tháng"]))]) // Lấy danh sách tháng duy nhất
+                .range([0, width])
+                .padding(0.1);
+
+            const y = d3.scaleLinear()
+                .domain([d3.min(groupedData, d => d["Xác suất"]), d3.max(groupedData, d => d["Xác suất"])]).nice()
+                .range([height, 0]);
+
+            const color = d3.scaleOrdinal()
+                .domain(Array.from(nestedData.keys()))
+                .range(d3.schemeSet2);
+
+            // Trục X (Tháng)
+            svg.append("g")
+                .attr("transform", `translate(0,${height})`)
+                .call(d3.axisBottom(x)
+                    .tickFormat(d => `Tháng ${d}`))
+                .selectAll("text")
+                .style("font-size", "12px")
+                .attr("transform", "rotate(-0)")
+                .style("text-anchor", "middle");
+
+            // Trục Y (Xác suất)
+            svg.append("g")
+                .call(d3.axisLeft(y)
+                    .ticks(10)
+                    .tickFormat(d => `${Math.round(d * 100)}%`))
+                .selectAll("text")
+                .style("font-size", "12px");
+
+            // Vẽ biểu đồ đường
+            const line = d3.line()
+                .x(d => x(d["Tháng"]) + x.bandwidth() / 2) // Đặt ở giữa ô band
+                .y(d => y(d["Xác suất"]));
+            
+            nestedData.forEach((values, key) => {
+                console.log('values',values,'key',key);
+                svg.append("path")
+                    .datum(values)
+                    .attr("class", "line")
+                    .attr("fill", "none")
+                    .attr("stroke", color(key))
+                    .attr("stroke-width", 3)
+                    .attr("d", line)
+                    .on("mouseover", function (event, d) {
+                        tooltip
+                            .style("display", "block")
+                            .html(`
+                                Nhóm hàng: <strong>${key}</strong><br>
+                                Xác suất: <strong>${(values[0]["Xác suất"] * 100).toFixed(1)}%</strong><br>
+                                Tháng: <strong>${values[0]["Tháng"]}</strong><br>
+                                Số đơn hàng: <strong>${values[0]["Unique Orders"].toLocaleString()}</strong>
+                            `);
+                    })
+                    .on("mousemove", function (event) {
+                        tooltip
+                            .style("top", (event.pageY - 10) + "px")
+                            .style("left", (event.pageX + 10) + "px");
+                    })
+                    .on("mouseout", function () {
+                        tooltip.style("display", "none");
+                    });
+
+                // Thêm các dấu "mark" (điểm đánh dấu) vào biểu đồ đường
+                svg.selectAll(".mark-" + key)
+                    .data(values)
+                    .enter()
+                    .append("circle")
+                    .attr("class", "mark-" + key)
+                    .attr("cx", d => x(d["Tháng"]) + x.bandwidth() / 2)  // Vị trí X của điểm
+                    .attr("cy", d => y(d["Xác suất"]))  // Vị trí Y của điểm
+                    .attr("r", 5)  // Đường kính của điểm
+                    .attr("fill", color(key))  // Màu sắc điểm theo nhóm hàng
+                    .on("mouseover", function (event, d) {
+                        tooltip
+                            .style("display", "block")
+                            .html(`
+                                Nhóm hàng: <strong>${key}</strong><br>
+                                Xác suất: <strong>${(d["Xác suất"] * 100).toFixed(1).toLocaleString()}%</strong><br>
+                                Tháng: <strong>${d["Tháng"]}</strong><br>
+                                Số đơn hàng: <strong>${d["Unique Orders"].toLocaleString()}</strong>
+                            `);
+                    })
+                    .on("mousemove", function (event) {
+                        tooltip
+                            .style("top", (event.pageY - 10) + "px")
+                            .style("left", (event.pageX + 10) + "px");
+                    })
+                    .on("mouseout", function () {
+                        tooltip.style("display", "none");
+                    });
+            });
+
+            // Nhãn trục X
+            svg.append("text")
+                .attr("x", width / 2)
+                .attr("y", height + margin.bottom - 5)
+                .attr("text-anchor", "middle")
+                .attr("class", "axis-label")
+                .text("Tháng");
+
+            // Nhãn trục Y
+            svg.append("text")
+                .attr("x", -height / 2)
+                .attr("y", -margin.left + 20)
+                .attr("text-anchor", "middle")
+                .attr("transform", "rotate(-90)")
+                .attr("class", "axis-label")
+                .text("Xác suất bán hàng (%)");
+            // Thêm phần legend vào biểu đồ
+            const legend = svg.append("g")
+                .attr("transform", `translate(${width - 10}, 20)`); // Vị trí của legend
+
+            // Thêm một mảng các nhóm hàng
+            const legendData = Array.from(nestedData.keys());
+
+            // Tạo một nhóm cho mỗi legend item
+            legendData.forEach((key, i) => {
+                const legendItem = legend.append("g")
+                    .attr("transform", `translate(0, ${i * 30})`); // Cách nhau 30px
+
+                // Thêm màu sắc cho mỗi nhóm
+                legendItem.append("rect")
+                    .attr("width", 20)
+                    .attr("height", 20)
+                    .attr("fill", color(key)); // Màu sắc dựa trên nhóm
+
+                // Thêm nhãn cho mỗi nhóm
+                legendItem.append("text")
+                    .attr("x", 30)
+                    .attr("y", 15)
+                    .attr("class", "axis-label")
+                    .text(key); // Tên nhóm
+            });
+            // Thêm tiêu đề cho legend
+            legend.append("text")
+                .attr("x", 0)
+                .attr("y", -10)
+                .attr("class", "axis-label")
+                .text("Nhóm hàng"); // Tiêu đề của legend
+
+        }).catch(function(error) {
+            console.error("Lỗi khi tải file CSV:", error);
+        });
+    </script>
+</body>
+</html>
